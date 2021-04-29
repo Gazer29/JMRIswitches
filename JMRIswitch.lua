@@ -12,7 +12,8 @@ local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
 local world = component.world_link
 local TcpIP = "84.65.32.30"
 local TcpSendPort = 12080
-local wait = 2
+local wait = 5
+local chunkLoad = true
  
 local function httpGET(ip)
     local atable = {}
@@ -65,15 +66,6 @@ function httpPUT(ip, data)
     local handle = internet.request(ip, encoded, header, "PUT")
     if handle == nil then
         print("failed to connect")
-    else
-        local mt = getmetatable(handle)
-        local code, message, headers = mt.__index.response()
-        --if code == 200 then
-        l = json:encode(headers)
-        n = "Code: "..(tostring(code))..", message: "..(tostring(message))..", headers: "..l
-        print(n)
-        for chunk in handle do result = result .. chunk end
-        print(result)
     end
 end
 
@@ -146,6 +138,43 @@ function compareWeb(CurrSwitches, WebSwitches)
     end
 end
 
+function compareWebState(CurrSwitches, WebSwitches)
+    for name, data in pairs(CurrSwitches) do
+        if WebSwitches[name] ~= nil then
+            print(name, data.state)
+            if WebSwitches[name] ~= data.state then
+                x = data.position.x
+                y = data.position.y
+                z = data.position.z
+                location = world.getLocationByCoordinates(x,y,z)
+                a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
+                if #a == 1 then
+                    b = a[1]
+                    c = b.getAPI("automation:redstone_box")
+                    out = 0
+                    if WebSwitches[name] then out = 15 end
+                    if chunkLoad then
+                        if location.isLoaded() == false then
+                            location.getChunk().forceLoad()
+                            os.sleep(0.1)
+                            c.setPowerLevel(out)
+                            os.sleep(0.1)
+                            location.getChunk().unforceLoad()
+                        else
+                            c.setPowerLevel(out)
+                        end
+                    else
+                        c.setPowerLevel(out)
+                    end
+                    print("Set: ",x,y,z,"To: ",out)
+                    CurrSwitches[name].state = WebSwitches[name]
+                end
+            end    
+        end
+    end
+end
+
+
 function compareTables(compare)
     against = loadFile(SWITCH_TABLE)
     if against ~= nil then
@@ -193,7 +222,7 @@ end
 function ParseLight(x)
     name = x["data"]["name"]
     state = x["data"]["state"]
-    return Jstate(state)
+    return JLstate(state)
 end
 
 function ParseTurnout(x)
@@ -204,7 +233,7 @@ function ParseTurnout(x)
         username = v["data"]["userName"]
         comment = v["data"]["comment"]
         inverted = v["data"]["inverted"]
-        state = Jstate(v["data"]["state"])
+        state = JTstate(v["data"]["state"])
         --print("Name: ",name,", Inverted: ", inverted,", State: ", state)
         if name ~= nil then
             xtable[name] = state
@@ -214,8 +243,8 @@ function ParseTurnout(x)
 end
 
 function buildTurnout(name, comment, state)
-    setstate = 4
-    if state == true then setstate = 2 end
+    setstate = 2
+    if state == true then setstate = 4 end
     out = {
         type="turnout",
         data= {name="IT"..name,comment=comment,state=setstate}
@@ -234,7 +263,15 @@ function buildLight(name, state)
     return out
 end
 
-function Jstate(x) -- JMRI state to true or false
+function JTstate(x) -- JMRI Turnout state to true or false
+    local out = false
+    if x == 4 then
+        out = true
+    end
+    return out
+end
+
+function JLstate(x) -- JMRI Light state to true or false, they are backwards...
     local out = false
     if x == 2 then
         out = true
@@ -263,7 +300,7 @@ while true do
         compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     end
     if ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then
-        UpdateSwitches()
+        compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     end
     print("-----")
     os.sleep(wait)
