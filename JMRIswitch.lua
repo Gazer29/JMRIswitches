@@ -12,7 +12,7 @@ local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
 local world = component.world_link
 local TcpIP = "84.65.32.30"
 local TcpSendPort = 12080
-local wait = 10
+local wait = 2
  
 local function httpGET(ip)
     local atable = {}
@@ -27,22 +27,42 @@ local function httpGET(ip)
         --if code == 200 then
         l = json:encode(headers)
         n = "Code: "..(tostring(code))..", message: "..(tostring(message))..", headers: "..l
-        print(n)
-        print("-------")
+        --print(n)
+        --print("-------")
         for chunk in handle do result = result .. chunk end
-        print(result)
+        --print(result)
         decoded = json:decode(result)
     end
     return decoded
 end
 
-local function httpPUT(ip, data)
+local function httpsGET(ip)
     local atable = {}
     local decoded = ""
+    local result = ""
+    local handle = internet.request(ip)
+    if handle == nil then
+        print("failed to connect")
+    else
+        local mt = getmetatable(handle)
+        local code, message, headers = mt.__index.response()
+        --if code == 200 then
+        l = json:encode(headers)
+        n = "Code: "..(tostring(code))..", message: "..(tostring(message))..", headers: "..l
+        --print(n)
+        --print("-------")
+        for chunk in handle do result = result .. chunk end
+        --print(result)
+        decoded = json:decode(result)
+    end
+    return decoded
+end
+
+function httpPUT(ip, data)
     local encoded = json:encode(data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
     local result = ""
-    local handle = internet.request(ip, data, header, "PUT")
+    local handle = internet.request(ip, encoded, header, "PUT")
     if handle == nil then
         print("failed to connect")
     else
@@ -57,7 +77,7 @@ local function httpPUT(ip, data)
     end
 end
 
-local function httpPOST(ip, data)
+function httpPOST(ip, data)
     local encoded = json:encode(data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
     local handle = internet.request(ip, encoded, header, "POST")
@@ -115,15 +135,18 @@ function changeRed(data)
     
 end
 
-local function compareWeb(CurrSwitches, WebSwitches)
+function compareWeb(CurrSwitches, WebSwitches)
+    for i,v in pairs(WebSwitches) do print(i,v) end
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] == nil then
-            HTTPPUT(buildTurnout(name,name, data.state))
+            print(name, data.state)
+            print(buildTurnout(name,name, data.state))
+            httpPUT(getip.."/turnout", buildTurnout(name,name, data.state))
         end
     end
 end
 
-local function compareTables(compare)
+function compareTables(compare)
     against = loadFile(SWITCH_TABLE)
     if against ~= nil then
         for name, data in pairs(compare) do
@@ -134,12 +157,12 @@ local function compareTables(compare)
         saveFile(SWITCH_TABLE, against)
         return against
     else
-        return compare
         saveFile(SWITCH_TABLE, compare)
+        return compare
     end   
 end
 
-local function FindSwitches()
+function FindSwitches()
     data = {}
     count = 0
     Allredboxes = world.getLoadedTileEntities().whereProperty("type", "automation:redstone_box").asList()
@@ -173,8 +196,8 @@ function ParseLight(x)
     return Jstate(state)
 end
 
-local function ParseTurnout(x)
-    table = {}
+function ParseTurnout(x)
+    xtable = {}
     for i,v in pairs(x) do
         name = v["data"]["name"]
         name = string.sub( name, 3 )
@@ -184,51 +207,44 @@ local function ParseTurnout(x)
         state = Jstate(v["data"]["state"])
         --print("Name: ",name,", Inverted: ", inverted,", State: ", state)
         if name ~= nil then
-            table[name] = state
+            xtable[name] = state
         end
     end
-    return table
+    return xtable
 end
 
-local function buildTurnout(name, comment, state)
+function buildTurnout(name, comment, state)
     setstate = 4
     if state == true then setstate = 2 end
-    data = {
-        "type"="turnout",
-        "data"={
-            "name"= "IT"..name,
-            "comment"= comment,
-            "inverted"= false,
-            "state"= setstate
-        }
+    out = {
+        type="turnout",
+        data= {name="IT"..name,comment=comment,state=setstate}
     }
-    return data
+    return out
 end
 
-local function buildLight(name, state)
+function buildLight(name, state)
     setstate = 4
     if state == true then setstate = 2 end
-    data = {
-        "type"="light",
-        "data"={
-            "name"= name,
-            "state"= setstate
-        }
-    }
-    return data
+    out = {
+        type="light",
+        data={name=name,state=setstate},
+
+      }
+    return out
 end
 
-local function Jstate(x) -- JMRI state to true or false
+function Jstate(x) -- JMRI state to true or false
     local out = false
-    if x == 15 then
+    if x == 2 then
         out = true
     end
     return out
 end
 
-local function Rstate(x) -- Redstone state to true or false
+function Rstate(x) -- Redstone state to true or false
     local out = false
-    if x == 2 then
+    if x == 15 then
         out = true
     end
     return out
@@ -239,14 +255,14 @@ end
 while true do
     print(os.date(" %I:%M %p"))
 
-    if ParseLight(HTTPGET(getip.."/light/ILFindSwitches")) then
+    if ParseLight(httpGET(getip.."/light/ILFindSwitches")) then
         -- Set Web FindSwitches to false
-        HTTPPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))
+        httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))
         print("Finding Switches")
         CurrSwitches = compareTables(FindSwitches())
-        compareWeb(CurrSwitches, (ParseTurnout(HTTPGET(getip.."/turnout")))
+        compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     end
-    if ParseLight(HTTPGET(getip.."/light/ILUpdateSwitches")) then
+    if ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then
         UpdateSwitches()
     end
     print("-----")
