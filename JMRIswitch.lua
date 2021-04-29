@@ -147,24 +147,24 @@ function compareWebState(CurrSwitches, WebSwitches)
                 y = data.position.y
                 z = data.position.z
                 location = world.getLocationByCoordinates(x,y,z)
+                flag = false
+                if chunkLoad then 
+                    if location.isLoaded() == false then 
+                        location.getChunk().forceLoad() 
+                        os.sleep(0.1)
+                        flag = true
+                    end
+                end
                 a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
                 if #a == 1 then
                     b = a[1]
                     c = b.getAPI("automation:redstone_box")
                     out = 0
                     if WebSwitches[name] then out = 15 end
-                    if chunkLoad then
-                        if location.isLoaded() == false then
-                            location.getChunk().forceLoad()
-                            os.sleep(0.1)
-                            c.setPowerLevel(out)
-                            os.sleep(0.1)
-                            location.getChunk().unforceLoad()
-                        else
-                            c.setPowerLevel(out)
-                        end
-                    else
-                        c.setPowerLevel(out)
+                    c.setPowerLevel(out)
+                    if flag then 
+                        os.sleep(0.1)
+                        location.getChunk().unforceLoad()
                     end
                     print("Set: ",x,y,z,"To: ",out)
                     CurrSwitches[name].state = WebSwitches[name]
@@ -247,7 +247,7 @@ function buildTurnout(name, comment, state)
     if state == true then setstate = 4 end
     out = {
         type="turnout",
-        data= {name="IT"..name,comment=comment,state=setstate}
+        data= {name="IT"..name,state=setstate}
     }
     return out
 end
@@ -288,10 +288,15 @@ function Rstate(x) -- Redstone state to true or false
 end
 
 -- MAIN --
+-- Load swtichtable is found, if not, find switches
+CurrSwitches = loadFile(SWITCH_TABLE)
+if CurrSwitches == nil then
+    CurrSwitches = FindSwitches()
+    saveFile(SWITCH_TABLE, CurrSwitches)
+end
 
 while true do
     print(os.date(" %I:%M %p"))
-
     if ParseLight(httpGET(getip.."/light/ILFindSwitches")) then
         -- Set Web FindSwitches to false
         httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))
