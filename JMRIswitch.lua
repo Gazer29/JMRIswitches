@@ -6,13 +6,10 @@ local term = require ("term")
 local json = require("json")
 local CONFIG_FILE = "/home/settings.cfg"
 local SWITCH_TABLE = "/home/switchtable.tbl"
-local CONFIG = {ip = "84.65.32.30",port = "12080"}
-local DEFAULT_CONFIG = {ip = "84.65.32.30",port = "12080"}
-local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
+local CONFIG = {}
+local DEFAULT_CONFIG = {ip = "84.65.32.30",port = "12080", wait = 1}
 local world = component.world_link
-local TcpIP = "84.65.32.30"
-local TcpSendPort = 12080
-local wait = 5
+local wait = 1
 local chunkLoad = true
  
 local function httpGET(ip)
@@ -110,29 +107,12 @@ function loadConfig(file)
       end
 end
 
-function changeRed(data)
-    for i, redbox in pairs(data) do
-        x = redbox.position.x
-        y = redbox.position.y
-        z = redbox.position.z
-        location = world.getLocationByCoordinates(x,y,z)
-        a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
-        if a ~= nil then
-            b = a[1]
-            c = b.getAPI("automation:redstone_box")
-            c.setPowerLevel(redbox.output)
-            print("Set: ",x,y,z,"To: ",output)
-            end
-        end
-    
-end
-
 function compareWeb(CurrSwitches, WebSwitches)
-    for i,v in pairs(WebSwitches) do print(i,v) end
+    --for i,v in pairs(WebSwitches) do print(i,v) end
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] == nil then
-            print(name, data.state)
-            print(buildTurnout(name,name, data.state))
+            --print(name, data.state)
+            --print(buildTurnout(name,name, data.state))
             httpPUT(getip.."/turnout", buildTurnout(name,name, data.state))
         end
     end
@@ -141,14 +121,14 @@ end
 function compareWebState(CurrSwitches, WebSwitches)
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] ~= nil then
-            print(name, data.state)
+            --print(name, data.state)
             if WebSwitches[name] ~= data.state then
                 x = data.position.x
                 y = data.position.y
                 z = data.position.z
                 location = world.getLocationByCoordinates(x,y,z)
                 flag = false
-                if chunkLoad then 
+                if CONFIG.chunkLoad then 
                     if location.isLoaded() == false then 
                         location.getChunk().forceLoad() 
                         os.sleep(0.1)
@@ -287,13 +267,91 @@ function Rstate(x) -- Redstone state to true or false
     return out
 end
 
+function getSettings()
+    print("What is the IP address of the JMRI server?")
+    local ip = nil
+    repeat
+      ip = io.read()
+    until ip ~= nil
+
+    print("What is the port number of the JMRI server?")
+    local port = nil
+    repeat
+      port = tonumber(io.read())
+      if port == nil or port <= 0 then
+        print("Invalid port number. Please enter a positive number.")
+      end
+    until port ~= nil and port > 0
+    
+    print("How fast do you want the update rate in seconds (standard is 1) ?")
+    local wait = nil
+    repeat
+        wait = tonumber(io.read())
+        if wait == nil or wait <= 0 then
+        print("Invalid number. Please enter a positive number.")
+        end
+    until wait ~= nil and wait > 0
+    
+    print("Entered information:")
+    print("  JMRI IP: \""..ip.."\"")
+    print("  JMRI port: \""..port.."\"")
+    print("  Update rate (s): \""..wait.."\"")
+    print("Is this information correct? [y/n]")
+    local choice = io.read()
+      
+    if choice == "y" or choice == "yes" then
+        CONFIG = {
+            ip = ip,
+            port = port,
+            wait = wait
+        }
+        return CONFIG
+    else
+        return nil
+    end
+end
+
+function startup()
+    local CONFIG = nil
+    local f = io.open(CONFIG_FILE, "r")
+    if f == nil then 
+        CONFIG = getSettings()
+        if CONFIG == nil then
+            CONFIG = loadConfig(CONFIG_FILE)
+            saveFile(CONFIG_FILE,CONFIG)
+        else
+            print("Saving to "..CONFIG_FILE..".")
+            saveFile(CONFIG_FILE,CONFIG)
+        end
+    else
+        print("Do you want to adjust the settings? [y/n]")
+        local choice = io.read()
+        if choice == "y" or choice == "yes" then
+            CONFIG = getSettings()
+        end
+        if CONFIG == nil then
+            CONFIG = loadConfig(CONFIG_FILE)
+            saveFile(CONFIG_FILE,CONFIG)
+        else
+            print("Saving to "..CONFIG_FILE..".")
+            saveFile(CONFIG_FILE,CONFIG)
+        end
+    end
+    return CONFIG
+end
+
 -- MAIN --
 -- Load swtichtable is found, if not, find switches
+
+CONFIG = startup()
+
 CurrSwitches = loadFile(SWITCH_TABLE)
 if CurrSwitches == nil then
     CurrSwitches = FindSwitches()
     saveFile(SWITCH_TABLE, CurrSwitches)
 end
+local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
+term.clear()
 
 while true do
     print(os.date(" %I:%M %p"))
@@ -307,6 +365,7 @@ while true do
     if ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then
         compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     end
-    print("-----")
-    os.sleep(wait)
+    --print("-----")
+    os.sleep(CONFIG.wait)
+    term.clear()
 end
