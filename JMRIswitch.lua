@@ -33,9 +33,9 @@ local function httpGET(ip)
     local handle = internet.request(ip,"",{},"GET")
     value, data = pcall(decode, handle)
     if value then
-        return value
+        return data
     else
-        RUNNING = false
+        print("nil")
         return nil
     end
 end
@@ -373,6 +373,7 @@ function handleEvents()
 end
 
 -- INIT --
+
 -- Setup of config and switch table
 CONFIG = startup()
 getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
@@ -387,6 +388,13 @@ term.clear()
 
 -- Create event handle for user keyboard
 thread.create(handleEvents)
+
+if httpGET(getip.."/railroad") ~= nil then
+    print("Building Lights")
+    httpPUT(getip.."/light", buildLight("ILBuildMode", false))
+    httpPUT(getip.."/light", buildLight("ILFindSwitches", false))
+    httpPUT(getip.."/light", buildLight("ILUpdateSwitches", false))
+end
 
 -- While running, checks in order; User reset, Build mode, Find switches, Update switches
 while RUNNING do
@@ -412,7 +420,7 @@ while RUNNING do
         CurrSwitches = compareTables(FindSwitches())
         compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     elseif ParseLight(httpGET(getip.."/light/ILFindSwitches")) then -- One off Find switches
-        httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))-- Set Web FindSwitches to false
+        httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false)) -- Set Web FindSwitches to false
         print("Finding Switches")
         CurrSwitches = compareTables(FindSwitches())
         compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
