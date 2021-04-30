@@ -3,7 +3,10 @@ local internet = require("internet")
 local serial = require("serialization")
 local fs = require("filesystem")
 local term = require ("term")
+local keyboard = require("keyboard") 
 local json = require("json")
+local event = require("event")
+local thread = require("thread")
 local CONFIG_FILE = "/home/settings.cfg"
 local SWITCH_TABLE = "/home/switchtable.tbl"
 local CONFIG = {ip = "localhost",port = "12080", wait = 1}
@@ -12,7 +15,10 @@ local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
 local world = component.world_link
 local wait = 1
 local chunkLoad = true
- 
+local RUNNING = true
+local flagReset = false
+
+
 local function httpGET(ip)
     local atable = {}
     local decoded = ""
@@ -21,15 +27,7 @@ local function httpGET(ip)
     if handle == nil then
         print("failed to connect")
     else
-        local mt = getmetatable(handle)
-        local code, message, headers = mt.__index.response()
-        --if code == 200 then
-        l = json:encode(headers)
-        n = "Code: "..(tostring(code))..", message: "..(tostring(message))..", headers: "..l
-        --print(n)
-        --print("-------")
         for chunk in handle do result = result .. chunk end
-        --print(result)
         decoded = json:decode(result)
     end
     return decoded
@@ -43,15 +41,7 @@ local function httpsGET(ip)
     if handle == nil then
         print("failed to connect")
     else
-        local mt = getmetatable(handle)
-        local code, message, headers = mt.__index.response()
-        --if code == 200 then
-        l = json:encode(headers)
-        n = "Code: "..(tostring(code))..", message: "..(tostring(message))..", headers: "..l
-        --print(n)
-        --print("-------")
         for chunk in handle do result = result .. chunk end
-        --print(result)
         decoded = json:decode(result)
     end
     return decoded
@@ -109,11 +99,8 @@ function loadConfig(file)
 end
 
 function compareWeb(CurrSwitches, WebSwitches)
-    --for i,v in pairs(WebSwitches) do print(i,v) end
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] == nil then
-            --print(name, data.state)
-            --print(buildTurnout(name,name, data.state))
             httpPUT(getip.."/turnout", buildTurnout(name,name, data.state))
         end
     end
@@ -122,7 +109,6 @@ end
 function compareWebState(CurrSwitches, WebSwitches)
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] ~= nil then
-            --print(name, data.state)
             if WebSwitches[name] ~= data.state then
                 x = data.position.x
                 y = data.position.y
@@ -218,7 +204,6 @@ function ParseTurnout(x)
         comment = v["data"]["comment"]
         inverted = v["data"]["inverted"]
         state = JTstate(v["data"]["state"])
-        --print("Name: ",name,", Inverted: ", inverted,", State: ", state)
         if name ~= nil then
             xtable[name] = state
         end
@@ -328,28 +313,39 @@ function startup()
             saveFile(CONFIG_FILE,CONFIG)
         end
     else
-        print("Do you want to adjust the settings? [y/n]")
-        local choice = io.read()
-        if choice == "y" or choice == "yes" then
-            CONFIG = getSettings()
-        end
-        if CONFIG == nil then
-            CONFIG = loadConfig(CONFIG_FILE)
-            saveFile(CONFIG_FILE,CONFIG)
-        else
-            print("Saving to "..CONFIG_FILE..".")
-            saveFile(CONFIG_FILE,CONFIG)
-        end
+        CONFIG = loadConfig(CONFIG_FILE)
     end
     return CONFIG
 end
 
+-- What to do when the user has typed some keys.
+local function onKeyDown(code)
+    local key = keyboard.keys[code]
+    if (keyboard.isControlDown()) then
+        if (key == "r") then
+            flagReset = true
+        elseif (key == "q") then
+            print("Quitting.")
+            RUNNING = false
+        end
+    end
+end
+
+-- General purpose event handler that delegates different events to their own functions.
+function handleEvents()
+    while RUNNING do
+        local event_name, p1, p2, p3, p4, p5 = event.pull()
+        if event_name == "key_down" then
+            local key_code = p3
+            onKeyDown(key_code)
+        end
+    end
+end
+
 -- MAIN --
--- Load swtichtable is found, if not, find switches
 
 CONFIG = startup()
 local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
-
 
 CurrSwitches = loadFile(SWITCH_TABLE)
 if CurrSwitches == nil then
@@ -358,10 +354,24 @@ if CurrSwitches == nil then
 end
 
 term.clear()
-
-while true do
+thread.create(handleEvents)
+while RUNNING do
+    if flagReset then
+        flagReset = false
+        CONFIG = getSettings()
+        if CONFIG == nil then
+            CONFIG = loadConfig(CONFIG_FILE)
+            saveFile(CONFIG_FILE,CONFIG)
+        else
+            print("Saving to "..CONFIG_FILE..".")
+            saveFile(CONFIG_FILE,CONFIG)
+        end
+        term.clear()
+    end
     print("JMRI Switches")
     print(os.date(" %I:%M %p"))
+    print("Reset: Cntl + r")
+    print("Exit: Cntl + q")
     if ParseLight(httpGET(getip.."/light/ILFindSwitches")) then
         -- Set Web FindSwitches to false
         httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))
@@ -372,7 +382,6 @@ while true do
     if ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then
         compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     end
-    --print("-----")
     os.sleep(CONFIG.wait)
     term.clear()
 end
