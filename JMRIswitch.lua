@@ -19,6 +19,7 @@ local RUNNING = true
 local flagReset = false
 
 
+-- General HTTP GET
 local function httpGET(ip)
     local atable = {}
     local decoded = ""
@@ -33,6 +34,7 @@ local function httpGET(ip)
     return decoded
 end
 
+-- General HTTPS GET -- required for a list of objects (i.e all turnouts)
 local function httpsGET(ip)
     local atable = {}
     local decoded = ""
@@ -47,6 +49,7 @@ local function httpsGET(ip)
     return decoded
 end
 
+-- General HTTP PUT
 function httpPUT(ip, data)
     local encoded = json:encode(data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
@@ -57,6 +60,7 @@ function httpPUT(ip, data)
     end
 end
 
+-- General HTTP POST
 function httpPOST(ip, data)
     local encoded = json:encode(data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
@@ -66,6 +70,7 @@ function httpPOST(ip, data)
     end
 end
  
+-- General save file
 function saveFile(file, data)
     local f = io.open(file, "w")
     if f == nil then error("Couldn't open " .. file .. " to write config.") end
@@ -73,6 +78,7 @@ function saveFile(file, data)
     f:close()
 end
 
+-- General load file
 function loadFile(file)
     local f = io.open(file, "r")
     if f == nil then 
@@ -85,6 +91,7 @@ function loadFile(file)
       end
 end
 
+-- General loadconfig file, loads default if not found
 function loadConfig(file)
     local f = io.open(file, "r")
     if f == nil then 
@@ -98,6 +105,7 @@ function loadConfig(file)
       end
 end
 
+-- Compares the Current switches against the JMRI turnouts, adds switch to JMRI if not found
 function compareWeb(CurrSwitches, WebSwitches)
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] == nil then
@@ -106,6 +114,7 @@ function compareWeb(CurrSwitches, WebSwitches)
     end
 end
 
+--Compares the states of the Current switches against the JMRI turnouts, if different, changes the state of that switch
 function compareWebState(CurrSwitches, WebSwitches)
     for name, data in pairs(CurrSwitches) do
         if WebSwitches[name] ~= nil then
@@ -114,13 +123,13 @@ function compareWebState(CurrSwitches, WebSwitches)
                 y = data.position.y
                 z = data.position.z
                 location = world.getLocationByCoordinates(x,y,z)
-                flag = false
+                flagChunk = false
                 if chunkLoad then 
                     if location.isLoaded() == false then 
                         location.getChunk().forceLoad() 
                         print("Chunk loading..")
                         os.sleep(0.1)
-                        flag = true
+                        flagChunk = true
                     end
                 end
                 a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
@@ -130,7 +139,7 @@ function compareWebState(CurrSwitches, WebSwitches)
                     out = 0
                     if WebSwitches[name] then out = 15 end
                     c.setPowerLevel(out)
-                    if flag then 
+                    if flagChunk then 
                         os.sleep(0.1)
                         location.getChunk().unforceLoad()
                     end
@@ -144,7 +153,7 @@ function compareWebState(CurrSwitches, WebSwitches)
     end
 end
 
-
+-- Compares the current switches against the previously saved switches
 function compareTables(compare)
     against = loadFile(SWITCH_TABLE)
     if against ~= nil then
@@ -161,6 +170,7 @@ function compareTables(compare)
     end   
 end
 
+-- Searches for all loaded Redstone_box, returns the list of found switches
 function FindSwitches()
     data = {}
     count = 0
@@ -189,12 +199,14 @@ function FindSwitches()
     return data
 end
  
+-- Turns JMRI light to a readable table
 function ParseLight(x)
     name = x["data"]["name"]
     state = x["data"]["state"]
     return JLstate(state)
 end
 
+-- Turns JMRI turnout to a readable table
 function ParseTurnout(x)
     xtable = {}
     for i,v in pairs(x) do
@@ -211,6 +223,7 @@ function ParseTurnout(x)
     return xtable
 end
 
+-- Builds JMRI Turnout to send
 function buildTurnout(name, comment, state)
     setstate = 2
     if state == true then setstate = 4 end
@@ -221,18 +234,19 @@ function buildTurnout(name, comment, state)
     return out
 end
 
+-- Builds JMRI Light to send
 function buildLight(name, state)
     setstate = 4
     if state == true then setstate = 2 end
     out = {
         type="light",
         data={name=name,state=setstate},
-
       }
     return out
 end
 
-function JTstate(x) -- JMRI Turnout state to true or false
+-- JMRI Turnout state converts to true or false
+function JTstate(x) 
     local out = false
     if x == 4 then
         out = true
@@ -240,7 +254,8 @@ function JTstate(x) -- JMRI Turnout state to true or false
     return out
 end
 
-function JLstate(x) -- JMRI Light state to true or false, they are backwards...
+-- JMRI Light state converts to true or false, they are backwards...
+function JLstate(x) 
     local out = false
     if x == 2 then
         out = true
@@ -248,7 +263,8 @@ function JLstate(x) -- JMRI Light state to true or false, they are backwards...
     return out
 end
 
-function Rstate(x) -- Redstone state to true or false
+-- Redstone state convert to true or false
+function Rstate(x) 
     local out = false
     if x == 15 then
         out = true
@@ -256,6 +272,7 @@ function Rstate(x) -- Redstone state to true or false
     return out
 end
 
+-- Gets user config information
 function getSettings()
     print("What is the IP address of the JMRI server?")
     local ip = nil
@@ -300,6 +317,7 @@ function getSettings()
     end
 end
 
+-- Checks for config file and loads, if not found, asks user for input
 function startup()
     local CONFIG = nil
     local f = io.open(CONFIG_FILE, "r")
@@ -342,18 +360,18 @@ function handleEvents()
     end
 end
 
--- MAIN --
-
+-- INIT --
+-- Setup of config and switch table
 CONFIG = startup()
 local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
-
 CurrSwitches = loadFile(SWITCH_TABLE)
 if CurrSwitches == nil then
     CurrSwitches = FindSwitches()
     saveFile(SWITCH_TABLE, CurrSwitches)
 end
-
 term.clear()
+
+-- MAIN --
 thread.create(handleEvents)
 while RUNNING do
     if flagReset then
@@ -372,14 +390,16 @@ while RUNNING do
     print(os.date(" %I:%M %p"))
     print("Reset: Cntl + r")
     print("Exit: Cntl + q")
-    if ParseLight(httpGET(getip.."/light/ILFindSwitches")) then
-        -- Set Web FindSwitches to false
-        httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))
+    if ParseLight(httpGET(getip.."/light/ILBuildMode")) then -- Constantly finds switches
+        print("In Build Mode")
+        CurrSwitches = compareTables(FindSwitches())
+        compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
+    elseif ParseLight(httpGET(getip.."/light/ILFindSwitches")) then -- One off Find switches
+        httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false))-- Set Web FindSwitches to false
         print("Finding Switches")
         CurrSwitches = compareTables(FindSwitches())
         compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
-    end
-    if ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then
+    elseif ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then -- Only updates current switches
         compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
     end
     os.sleep(CONFIG.wait)
