@@ -31,15 +31,12 @@ local function httpGET(ip)
     local decoded = ""
     local result = ""
     local handle = internet.request(ip,"",{},"GET")
-    if handle == nil then
-        print("failed to connect")
+    value, data = pcall(decode, handle)
+    if value then
+        return value
     else
-        value, data = pcall(decode(handle))
-        if value then
-            return value
-        else
-            return nil
-        end
+        RUNNING = false
+        return nil
     end
 end
 
@@ -212,9 +209,13 @@ end
  
 -- Turns JMRI light to a readable table
 function ParseLight(x)
-    name = x["data"]["name"]
-    state = x["data"]["state"]
-    return JLstate(state)
+    if x ~= nil then
+        name = x["data"]["name"]
+        state = x["data"]["state"]
+        return JLstate(state)
+    else
+        return false
+    end
 end
 
 -- Turns JMRI turnout to a readable table
