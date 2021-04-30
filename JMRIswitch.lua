@@ -18,6 +18,12 @@ local chunkLoad = true
 local RUNNING = true
 local flagReset = false
 
+-- Decode
+function decode(x)
+    for chunk in x do result = result .. chunk end
+    decoded = json:decode(result)
+    return decoded
+end
 
 -- General HTTP GET
 local function httpGET(ip)
@@ -28,10 +34,13 @@ local function httpGET(ip)
     if handle == nil then
         print("failed to connect")
     else
-        for chunk in handle do result = result .. chunk end
-        decoded = json:decode(result)
+        value, data = pcall(decode(handle))
+        if value then
+            return value
+        else
+            return nil
+        end
     end
-    return decoded
 end
 
 -- General HTTPS GET -- required for a list of objects (i.e all turnouts)
