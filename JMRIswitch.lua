@@ -6,8 +6,9 @@ local term = require ("term")
 local json = require("json")
 local CONFIG_FILE = "/home/settings.cfg"
 local SWITCH_TABLE = "/home/switchtable.tbl"
-local CONFIG = {}
+local CONFIG = {ip = "localhost",port = "12080", wait = 1}
 local DEFAULT_CONFIG = {ip = "84.65.32.30",port = "12080", wait = 1}
+local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
 local world = component.world_link
 local wait = 1
 local chunkLoad = true
@@ -128,15 +129,16 @@ function compareWebState(CurrSwitches, WebSwitches)
                 z = data.position.z
                 location = world.getLocationByCoordinates(x,y,z)
                 flag = false
-                if CONFIG.chunkLoad then 
+                if chunkLoad then 
                     if location.isLoaded() == false then 
                         location.getChunk().forceLoad() 
+                        print("Chunk loading..")
                         os.sleep(0.1)
                         flag = true
                     end
                 end
                 a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
-                if #a == 1 then
+                if a ~= nil then
                     b = a[1]
                     c = b.getAPI("automation:redstone_box")
                     out = 0
@@ -148,6 +150,8 @@ function compareWebState(CurrSwitches, WebSwitches)
                     end
                     print("Set: ",x,y,z,"To: ",out)
                     CurrSwitches[name].state = WebSwitches[name]
+                else
+                    print("Error locating rebox: ", name)
                 end
             end    
         end
@@ -344,16 +348,19 @@ end
 -- Load swtichtable is found, if not, find switches
 
 CONFIG = startup()
+local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
+
 
 CurrSwitches = loadFile(SWITCH_TABLE)
 if CurrSwitches == nil then
     CurrSwitches = FindSwitches()
     saveFile(SWITCH_TABLE, CurrSwitches)
 end
-local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
+
 term.clear()
 
 while true do
+    print("JMRI Switches")
     print(os.date(" %I:%M %p"))
     if ParseLight(httpGET(getip.."/light/ILFindSwitches")) then
         -- Set Web FindSwitches to false
