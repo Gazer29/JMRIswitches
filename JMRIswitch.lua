@@ -57,6 +57,8 @@ function httpPUT(ip, data)
     local handle = internet.request(ip, encoded, header, "PUT")
     if handle == nil then
         print("failed to connect")
+    else
+        holdtable = handle()
     end
 end
 
@@ -363,7 +365,7 @@ end
 -- INIT --
 -- Setup of config and switch table
 CONFIG = startup()
-local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
+getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
 CurrSwitches = loadFile(SWITCH_TABLE)
 if CurrSwitches == nil then
     CurrSwitches = FindSwitches()
@@ -372,7 +374,11 @@ end
 term.clear()
 
 -- MAIN --
+
+-- Create event handle for user keyboard
 thread.create(handleEvents)
+
+-- While running, checks in order; User reset, Build mode, Find switches, Update switches
 while RUNNING do
     if flagReset then
         flagReset = false
@@ -385,6 +391,7 @@ while RUNNING do
             saveFile(CONFIG_FILE,CONFIG)
         end
         term.clear()
+        getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
     end
     print("JMRI Switches")
     print(os.date(" %I:%M %p"))
