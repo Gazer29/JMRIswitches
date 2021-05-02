@@ -408,8 +408,10 @@ term.clear()
 
 -- MAIN --
 
+os.sleep(10)
+
 -- Create event handle for user keyboard
-thread.create(handleEvents)
+thread.create(handleEvents):detach()
 
 
 --read([n:number]):string
@@ -420,10 +422,18 @@ thread.create(handleEvents)
 --Ensures a response is available. Errors if the connection failed.
 
 if httpGET(getip.."/railroad") ~= nil then
-    print("Building Lights")
-    httpPUT(getip.."/light", buildLight("ILBuildMode", false))
-    httpPUT(getip.."/light", buildLight("ILFindSwitches", false))
-    httpPUT(getip.."/light", buildLight("ILUpdateSwitches", false))
+    if httpGET(getip.."/light/ILBuildMode") == nil then
+        httpPUT(getip.."/light", buildLight("ILBuildMode", false))
+        print("Adding to Lights")
+    end
+    if httpGET(getip.."/light/ILFindSwitches") == nil then
+        httpPUT(getip.."/light", buildLight("ILFindSwitches", false))
+        print("Adding to Lights")
+    end
+    if httpGET(getip.."/light/ILUpdateSwitches") == nil then
+        httpPUT(getip.."/light", buildLight("ILUpdateSwitches", false))
+        print("Adding to Lights")
+    end
 end
 
 -- While running, checks in order; User reset, Build mode, Find switches, Update switches
