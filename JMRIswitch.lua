@@ -21,6 +21,7 @@ local chunkLoad = true
 local RUNNING = true
 local flagReset = false
 
+
 -- Decode
 function decode(x)
     result = ""
@@ -29,31 +30,40 @@ function decode(x)
     return decoded
 end
 
+-- Uses finishConnect() to check connection, need to be run multiple times to work...
+local function httpTEST(x)
+    local flagConnect = false
+    for i = 1, 10 do
+        if x.finishConnect() then
+            flagConnect = true
+            break
+        end
+    end
+    return flagConnect
+end
+
 -- General HTTP GET
 local function httpGET(ip)
-    local atable = {}
     local decoded = ""
-    local result = ""
     local handle = internet.request(ip,"",{},"GET")
-    local alive = handle.finishConnect()
     if handle.response() ~= nil then
-        decoded = json:decode(result)
+        decoded = decode(handle)
         return decoded
     else
         return nil
+    end
 end
 
 -- General HTTPS GET -- required for a list of objects (i.e all turnouts)
 local function httpsGET(ip)
-    local atable = {}
     local decoded = ""
-    local result = ""
     local handle = internet.request(ip)
     if handle.response() ~= nil then
-        decoded = json:decode(result)
+        decoded = decode(handle)
         return decoded
     else
         return nil
+    end
 end
 
 -- General HTTP PUT
@@ -62,8 +72,10 @@ function httpPUT(ip, data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
     local result = ""
     local handle = internet.request(ip, encoded, header, "PUT")
-    if handle.response() ~= nil then
-        handle.close()
+    if handle == nil then
+        print("failed to connect")
+    else
+        holdtable = handle() -- required
     end
 end
 
@@ -72,8 +84,10 @@ function httpPOST(ip, data)
     local encoded = json:encode(data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
     local handle = internet.request(ip, encoded, header, "POST")
-    if handle.response() ~= nil then
-        handle.close()
+    if handle == nil then
+        print("failed to connect")
+    else
+        holdtable = handle() -- required
     end
 end
  
@@ -240,6 +254,7 @@ function ParseTurnout(x)
         return xtable
     else
         return nil
+    end
 end
 
 -- Builds JMRI Turnout to send
@@ -406,7 +421,7 @@ thread.create(handleEvents)
 --finishConnect():boolean
 --Ensures a response is available. Errors if the connection failed.
 
-if httpGET(getip.."/light") ~= nil then
+if httpGET(getip.."/railroad") ~= nil then
     print("Building Lights")
     httpPUT(getip.."/light", buildLight("ILBuildMode", false))
     httpPUT(getip.."/light", buildLight("ILFindSwitches", false))
