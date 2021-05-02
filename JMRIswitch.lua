@@ -1,3 +1,6 @@
+-- JMRIswitch v1
+-- Requires Aumation Mod and JMRI Server
+
 local component = require("component")
 local internet = require("internet")
 local serial = require("serialization")
@@ -20,6 +23,7 @@ local flagReset = false
 
 -- Decode
 function decode(x)
+    result = ""
     for chunk in x do result = result .. chunk end
     decoded = json:decode(result)
     return decoded
@@ -31,13 +35,12 @@ local function httpGET(ip)
     local decoded = ""
     local result = ""
     local handle = internet.request(ip,"",{},"GET")
-    value, data = pcall(decode, handle)
-    if value then
-        return data
+    local alive = handle.finishConnect()
+    if handle.response() ~= nil then
+        decoded = json:decode(result)
+        return decoded
     else
-        print("nil")
         return nil
-    end
 end
 
 -- General HTTPS GET -- required for a list of objects (i.e all turnouts)
@@ -46,13 +49,11 @@ local function httpsGET(ip)
     local decoded = ""
     local result = ""
     local handle = internet.request(ip)
-    if handle == nil then
-        print("failed to connect")
-    else
-        for chunk in handle do result = result .. chunk end
+    if handle.response() ~= nil then
         decoded = json:decode(result)
-    end
-    return decoded
+        return decoded
+    else
+        return nil
 end
 
 -- General HTTP PUT
@@ -61,10 +62,8 @@ function httpPUT(ip, data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
     local result = ""
     local handle = internet.request(ip, encoded, header, "PUT")
-    if handle == nil then
-        print("failed to connect")
-    else
-        holdtable = handle()
+    if handle.response() ~= nil then
+        handle.close()
     end
 end
 
@@ -73,8 +72,8 @@ function httpPOST(ip, data)
     local encoded = json:encode(data)
     local header = {["Content-Type"] = "application/json;charset=utf-8"}
     local handle = internet.request(ip, encoded, header, "POST")
-    if handle == nil then
-        print("failed to connect")
+    if handle.response() ~= nil then
+        handle.close()
     end
 end
  
@@ -115,48 +114,52 @@ end
 
 -- Compares the Current switches against the JMRI turnouts, adds switch to JMRI if not found
 function compareWeb(CurrSwitches, WebSwitches)
-    for name, data in pairs(CurrSwitches) do
-        if WebSwitches[name] == nil then
-            httpPUT(getip.."/turnout", buildTurnout(name,name, data.state))
+    if WebSwitches ~= nil then
+        for name, data in pairs(CurrSwitches) do
+            if WebSwitches[name] == nil then
+                httpPUT(getip.."/turnout", buildTurnout(name,name, data.state))
+            end
         end
     end
 end
 
 --Compares the states of the Current switches against the JMRI turnouts, if different, changes the state of that switch
 function compareWebState(CurrSwitches, WebSwitches)
-    for name, data in pairs(CurrSwitches) do
-        if WebSwitches[name] ~= nil then
-            if WebSwitches[name] ~= data.state then
-                x = data.position.x
-                y = data.position.y
-                z = data.position.z
-                location = world.getLocationByCoordinates(x,y,z)
-                flagChunk = false
-                if chunkLoad then 
-                    if location.isLoaded() == false then 
-                        location.getChunk().forceLoad() 
-                        print("Chunk loading..")
-                        os.sleep(0.1)
-                        flagChunk = true
+    if WebSwitches ~= nil then
+        for name, data in pairs(CurrSwitches) do
+            if WebSwitches[name] ~= nil then
+                if WebSwitches[name] ~= data.state then
+                    x = data.position.x
+                    y = data.position.y
+                    z = data.position.z
+                    location = world.getLocationByCoordinates(x,y,z)
+                    flagChunk = false
+                    if chunkLoad then 
+                        if location.isLoaded() == false then 
+                            location.getChunk().forceLoad() 
+                            print("Chunk loading..")
+                            os.sleep(0.1)
+                            flagChunk = true
+                        end
                     end
-                end
-                a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
-                if a ~= nil then
-                    b = a[1]
-                    c = b.getAPI("automation:redstone_box")
-                    out = 0
-                    if WebSwitches[name] then out = 15 end
-                    c.setPowerLevel(out)
-                    if flagChunk then 
-                        os.sleep(0.1)
-                        location.getChunk().unforceLoad()
+                    a = location.getTileEntities().whereProperty("type", "automation:redstone_box").asList()
+                    if a ~= nil then
+                        b = a[1]
+                        c = b.getAPI("automation:redstone_box")
+                        out = 0
+                        if WebSwitches[name] then out = 15 end
+                        c.setPowerLevel(out)
+                        if flagChunk then 
+                            os.sleep(0.1)
+                            location.getChunk().unforceLoad()
+                        end
+                        print("Set: ",x,y,z,"To: ",out)
+                        CurrSwitches[name].state = WebSwitches[name]
+                    else
+                        print("Error locating rebox: ", name)
                     end
-                    print("Set: ",x,y,z,"To: ",out)
-                    CurrSwitches[name].state = WebSwitches[name]
-                else
-                    print("Error locating rebox: ", name)
-                end
-            end    
+                end    
+            end
         end
     end
 end
@@ -212,6 +215,7 @@ function ParseLight(x)
     if x ~= nil then
         name = x["data"]["name"]
         state = x["data"]["state"]
+        print (name,state)
         return JLstate(state)
     else
         return false
@@ -220,19 +224,22 @@ end
 
 -- Turns JMRI turnout to a readable table
 function ParseTurnout(x)
-    xtable = {}
-    for i,v in pairs(x) do
-        name = v["data"]["name"]
-        name = string.sub( name, 3 )
-        username = v["data"]["userName"]
-        comment = v["data"]["comment"]
-        inverted = v["data"]["inverted"]
-        state = JTstate(v["data"]["state"])
-        if name ~= nil then
-            xtable[name] = state
+    if x ~= nil then
+        xtable = {}
+        for i,v in pairs(x) do
+            name = v["data"]["name"]
+            name = string.sub( name, 3 )
+            username = v["data"]["userName"]
+            comment = v["data"]["comment"]
+            inverted = v["data"]["inverted"]
+            state = JTstate(v["data"]["state"])
+            if name ~= nil then
+                xtable[name] = state
+            end
         end
-    end
-    return xtable
+        return xtable
+    else
+        return nil
 end
 
 -- Builds JMRI Turnout to send
@@ -389,7 +396,17 @@ term.clear()
 -- Create event handle for user keyboard
 thread.create(handleEvents)
 
-if httpGET(getip.."/railroad") ~= nil then
+
+--read([n:number]):string
+--Tries to read data from the response. Returns the read byte array.
+--response():number, string, table
+--Get response code, message and headers.
+--close()
+--Closes an open socket stream.
+--finishConnect():boolean
+--Ensures a response is available. Errors if the connection failed.
+
+if httpGET(getip.."/light") ~= nil then
     print("Building Lights")
     httpPUT(getip.."/light", buildLight("ILBuildMode", false))
     httpPUT(getip.."/light", buildLight("ILFindSwitches", false))
@@ -415,17 +432,21 @@ while RUNNING do
     print(os.date(" %I:%M %p"))
     print("Reset: Cntl + r")
     print("Exit: Cntl + q")
-    if ParseLight(httpGET(getip.."/light/ILBuildMode")) then -- Constantly finds switches
-        print("In Build Mode")
-        CurrSwitches = compareTables(FindSwitches())
-        compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
-    elseif ParseLight(httpGET(getip.."/light/ILFindSwitches")) then -- One off Find switches
-        httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false)) -- Set Web FindSwitches to false
-        print("Finding Switches")
-        CurrSwitches = compareTables(FindSwitches())
-        compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
-    elseif ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then -- Only updates current switches
-        compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
+    if httpGET(getip.."/railroad") ~= nil then
+        if ParseLight(httpGET(getip.."/light/ILBuildMode")) then -- Constantly finds switches
+            print("In Build Mode")
+            CurrSwitches = compareTables(FindSwitches())
+            compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
+        elseif ParseLight(httpGET(getip.."/light/ILFindSwitches")) then -- One off Find switches
+            httpPOST(getip.."/light/ILFindSwitches", buildLight("ILFindSwitches", false)) -- Set Web FindSwitches to false
+            print("Finding Switches")
+            CurrSwitches = compareTables(FindSwitches())
+            compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
+        elseif ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then -- Only updates current switches
+            compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
+        end
+    else
+        print("No connection")
     end
     os.sleep(CONFIG.wait)
     term.clear()
