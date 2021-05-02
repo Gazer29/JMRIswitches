@@ -184,7 +184,9 @@ function compareTables(compare)
         for name, data in pairs(compare) do
             if against[name] == nil then
                 against[name] = data
-            end
+            else
+                against[name].state = data.state
+            end            
         end
         saveFile(SWITCH_TABLE, against)
         return against
@@ -262,7 +264,7 @@ function buildTurnout(name, comment, state)
     if state == true then setstate = 4 end
     out = {
         type="turnout",
-        data= {name="IT"..name,comment=comment,state=setstate}
+        data= {name="IT"..name,comment=comment,state=0}
     }
     return out
 end
