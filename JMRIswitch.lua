@@ -21,7 +21,6 @@ local chunkLoad = true
 local RUNNING = true
 local flagReset = false
 
-
 -- Decode
 function decode(x)
     result = ""
@@ -386,7 +385,7 @@ end
 -- General purpose event handler that delegates different events to their own functions.
 function handleEvents()
     while RUNNING do
-        local event_name, p1, p2, p3, p4, p5 = event.pull()
+        local event_name, p1, p2, p3, p4, p5 = event.pull("key_down")
         if event_name == "key_down" then
             local key_code = p3
             onKeyDown(key_code)
@@ -408,11 +407,10 @@ term.clear()
 
 -- MAIN --
 
-os.sleep(10)
+os.sleep(1)
 
 -- Create event handle for user keyboard
 thread.create(handleEvents):detach()
-
 
 --read([n:number]):string
 --Tries to read data from the response. Returns the read byte array.
