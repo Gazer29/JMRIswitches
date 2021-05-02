@@ -13,7 +13,7 @@ local thread = require("thread")
 local CONFIG_FILE = "/home/settings.cfg"
 local SWITCH_TABLE = "/home/switchtable.tbl"
 local CONFIG = {ip = "localhost",port = "12080", wait = 1}
-local DEFAULT_CONFIG = {ip = "84.65.32.30",port = "12080", wait = 1}
+local DEFAULT_CONFIG = {ip = "localhost",port = "12080", wait = 1}
 local getip = "http://"..CONFIG.ip..":"..CONFIG.port.."/json"
 local world = component.world_link
 local wait = 1
