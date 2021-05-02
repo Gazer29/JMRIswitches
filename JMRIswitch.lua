@@ -131,7 +131,7 @@ function compareWeb(CurrSwitches, WebSwitches)
     if WebSwitches ~= nil then
         for name, data in pairs(CurrSwitches) do
             if WebSwitches[name] == nil then
-                httpPUT(getip.."/turnout", buildTurnout(name,name, data.state))
+                httpPUT(getip.."/turnout", buildTurnout(name,name:gsub("%,", " "), data.state))
             end
         end
     end
@@ -229,7 +229,7 @@ function ParseLight(x)
     if x ~= nil then
         name = x["data"]["name"]
         state = x["data"]["state"]
-        print (name,state)
+        --print (name,state)
         return JLstate(state)
     else
         return false
@@ -263,7 +263,7 @@ function buildTurnout(name, comment, state)
     if state == true then setstate = 4 end
     out = {
         type="turnout",
-        data= {name="IT"..name,state=setstate}
+        data= {name="IT"..name,comment=comment,state=setstate}
     }
     return out
 end
@@ -416,8 +416,6 @@ thread.create(handleEvents)
 --Tries to read data from the response. Returns the read byte array.
 --response():number, string, table
 --Get response code, message and headers.
---close()
---Closes an open socket stream.
 --finishConnect():boolean
 --Ensures a response is available. Errors if the connection failed.
 
@@ -457,7 +455,8 @@ while RUNNING do
             print("Finding Switches")
             CurrSwitches = compareTables(FindSwitches())
             compareWeb(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
-        elseif ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then -- Only updates current switches
+        end
+        if ParseLight(httpGET(getip.."/light/ILUpdateSwitches")) then -- Only updates current switches
             compareWebState(CurrSwitches, (ParseTurnout(httpsGET(getip.."/turnout"))))
         end
     else
