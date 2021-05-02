@@ -31,7 +31,7 @@ function decode(x)
 end
 
 -- Uses finishConnect() to check connection, need to be run multiple times to work...
-local function httpTEST(x)
+function httpTEST(x)
     local flagConnect = false
     for i = 1, 10 do
         if x.finishConnect() then
@@ -43,10 +43,10 @@ local function httpTEST(x)
 end
 
 -- General HTTP GET
-local function httpGET(ip)
+function httpGET(ip)
     local decoded = ""
-    local handle = internet.request(ip,"",{},"GET")
-    if handle.response() ~= nil then
+    handle = internet.request(ip,"",{},"GET")
+    if httpTEST(handle) then
         decoded = decode(handle)
         return decoded
     else
@@ -55,10 +55,10 @@ local function httpGET(ip)
 end
 
 -- General HTTPS GET -- required for a list of objects (i.e all turnouts)
-local function httpsGET(ip)
+function httpsGET(ip)
     local decoded = ""
-    local handle = internet.request(ip)
-    if handle.response() ~= nil then
+    handle = internet.request(ip)
+    if httpTEST(handle) then
         decoded = decode(handle)
         return decoded
     else
