@@ -20,6 +20,7 @@ local wait = 1
 local chunkLoad = true
 local RUNNING = true
 local flagReset = false
+local CurrSwitches = {}
 
 -- Decode
 function decode(x)
