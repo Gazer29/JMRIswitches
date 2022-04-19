@@ -1,11 +1,11 @@
 # JMRIswitches
-JMRIswitches is a LUA script for Opencomputers to automate the toggling of switches in Minecraft from a Web interface in JMRI.
+JMRIswitches is a LUA script for Opencomputers to automate the toggling of switches in MC from a Web interface in JMRI.
 
 # Requirements 
 Minecraft 1.12.2
 
 # Installation
-**1. Add Opencomputers and Automation Mod to Minecraft**
+**1. Add Opencomputers and Automation Mod to MC**
 
 Download Opencomputers from here: https://www.curseforge.com/minecraft/mc-mods/opencomputers/files
 
