@@ -139,10 +139,16 @@ end
 
 --Compares the states of the Current switches against the JMRI turnouts, if different, changes the state of that switch
 function compareWebState(CurrSwitches, WebSwitches)
+    changed = false
     if WebSwitches ~= nil then
         for name, data in pairs(CurrSwitches) do
             if WebSwitches[name] ~= nil then
-                if WebSwitches[name] ~= data.state then
+                if WebSwitches[name].username ~= data.username then
+                    changed = true
+                    CurrSwitches[name].username = WebSwitches[name].username
+                    end
+                if WebSwitches[name].state ~= data.state then
+                    changed = true
                     x = data.position.x
                     y = data.position.y
                     z = data.position.z
@@ -161,22 +167,23 @@ function compareWebState(CurrSwitches, WebSwitches)
                         b = a[1]
                         c = b.getAPI("automation:redstone_box")
                         out = 0
-                        if WebSwitches[name] then out = 15 end
+                        if WebSwitches[name].state then out = 15 end
                         c.setPowerLevel(out)
                         if flagChunk then 
                             os.sleep(0.1)
                             location.getChunk().unforceLoad()
                         end
-                        CurrSwitches[name].state = WebSwitches[name]
-                        username = WebSwitches[name][userName]
-                        CurrSwitches[name].username = username
-                        print("Set: ",username,", ",x,y,z,"To: ",out)
+                        CurrSwitches[name].state = WebSwitches[name].state
+                        print("Set: ",WebSwitches[name].username,", ",x,y,z,"To: ",out)
                     else
                         print("Error locating rebox: ", name)
                     end
                 end    
             end
         end
+    if changed == true then
+         saveFile(SWITCH_TABLE, CurrSwitches)
+         end
     end
 end
 
@@ -252,8 +259,10 @@ function ParseTurnout(x)
             inverted = v["data"]["inverted"]
             state = JTstate(v["data"]["state"])
             if name ~= nil then
-                xtable[name] = state
-                xtable[name][username] = username
+                a = {}
+                a["state"] = state
+                a["username"] = username
+                xtable[name] = a
             end
         end
         return xtable
