@@ -258,7 +258,6 @@ function ParseTurnout(x)
             comment = v["data"]["comment"]
             inverted = v["data"]["inverted"]
             state = JTstate(v["data"]["state"])
-            print(state)
             if name ~= nil then
                 a = {}
                 a["state"] = state
