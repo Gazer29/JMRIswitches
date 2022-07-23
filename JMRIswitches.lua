@@ -131,7 +131,7 @@ function compareWeb(CurrSwitches, WebSwitches)
     if WebSwitches ~= nil then
         for name, data in pairs(CurrSwitches) do
             if WebSwitches[name] == nil then
-                httpPUT(getip.."/turnout", buildTurnout(name,name:gsub("%,", " "), data.state))
+                httpPUT(getip.."/turnout", buildTurnout(name,name:gsub("%,", " "),data.username,data.state))
             end
         end
     end
@@ -167,8 +167,10 @@ function compareWebState(CurrSwitches, WebSwitches)
                             os.sleep(0.1)
                             location.getChunk().unforceLoad()
                         end
-                        print("Set: ",x,y,z,"To: ",out)
                         CurrSwitches[name].state = WebSwitches[name]
+                        username = WebSwitches[name][userName]
+                        CurrSwitches[name].username = username
+                        print("Set: ",username,", ",x,y,z,"To: ",out)
                     else
                         print("Error locating rebox: ", name)
                     end
@@ -214,6 +216,7 @@ function FindSwitches()
             a["position"] = c
             a["state"] = Rstate(output)
             name = tostring(xpos)..","..tostring(ypos)..","..tostring(zpos)
+            a["username"] = name
             data[name] = a
             count = count + 1
             os.sleep(0.1)
@@ -231,7 +234,6 @@ function ParseLight(x)
     if x ~= nil then
         name = x["data"]["name"]
         state = x["data"]["state"]
-        --print (name,state)
         return JLstate(state)
     else
         return false
@@ -251,6 +253,7 @@ function ParseTurnout(x)
             state = JTstate(v["data"]["state"])
             if name ~= nil then
                 xtable[name] = state
+                xtable[name][username] = username
             end
         end
         return xtable
@@ -260,12 +263,12 @@ function ParseTurnout(x)
 end
 
 -- Builds JMRI Turnout to send
-function buildTurnout(name, comment, state)
+function buildTurnout(name, comment, username, state)
     setstate = 2
     if state == true then setstate = 4 end
     out = {
         type="turnout",
-        data= {name="IT"..name,comment=comment,state=0}
+        data= {name="IT"..name,comment=comment,userName=username,state=0}
     }
     return out
 end
@@ -425,15 +428,15 @@ thread.create(handleEvents):detach()
 if httpGET(getip.."/railroad") ~= nil then
     if httpGET(getip.."/light/ILBuildMode") == nil then
         httpPUT(getip.."/light", buildLight("ILBuildMode", false))
-        print("Adding to Lights")
+        print("Adding BuildMode to Lights")
     end
     if httpGET(getip.."/light/ILFindSwitches") == nil then
         httpPUT(getip.."/light", buildLight("ILFindSwitches", false))
-        print("Adding to Lights")
+        print("Adding FindSwitches to Lights")
     end
     if httpGET(getip.."/light/ILUpdateSwitches") == nil then
         httpPUT(getip.."/light", buildLight("ILUpdateSwitches", false))
-        print("Adding to Lights")
+        print("Adding UpdateSwitches to Lights")
     end
 end
 
