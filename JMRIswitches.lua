@@ -139,10 +139,12 @@ end
 
 --Compares the states of the Current switches against the JMRI turnouts, if different, changes the state of that switch
 function compareWebState(CurrSwitches, WebSwitches)
+    changed = false
     if WebSwitches ~= nil then
         for name, data in pairs(CurrSwitches) do
             if WebSwitches[name] ~= nil then
                 if WebSwitches[name].state ~= data.state then
+                    changed = true
                     x = data.position.x
                     y = data.position.y
                     z = data.position.z
@@ -177,6 +179,9 @@ function compareWebState(CurrSwitches, WebSwitches)
                 end    
             end
         end
+    if changed == true then
+         saveFile(SWITCH_TABLE, CurrSwitches)
+         end
     end
 end
 
