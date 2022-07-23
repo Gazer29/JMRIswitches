@@ -143,6 +143,10 @@ function compareWebState(CurrSwitches, WebSwitches)
     if WebSwitches ~= nil then
         for name, data in pairs(CurrSwitches) do
             if WebSwitches[name] ~= nil then
+                if WebSwitches[name].username ~= data.username then
+                    changed = true
+                    CurrSwitches[name].username = WebSwitches[name].username
+                    end
                 if WebSwitches[name].state ~= data.state then
                     changed = true
                     x = data.position.x
@@ -170,9 +174,7 @@ function compareWebState(CurrSwitches, WebSwitches)
                             location.getChunk().unforceLoad()
                         end
                         CurrSwitches[name].state = WebSwitches[name].state
-                        username = WebSwitches[name].username
-                        CurrSwitches[name].username = username
-                        print("Set: ",username,", ",x,y,z,"To: ",out)
+                        print("Set: ",WebSwitches[name].username,", ",x,y,z,"To: ",out)
                     else
                         print("Error locating rebox: ", name)
                     end
