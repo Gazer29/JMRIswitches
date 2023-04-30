@@ -48,6 +48,7 @@ Reboot Opencomputers or start using the command 'JMRIswitches'
 Follow the initial configuration instructions by entering in the ip, port of the JMRI Web interface:
 
 	If on your local machine, ip = localhost, port = 12080
+	Note - If running MC and JMRI locally, the MC OpenComputers configuration file needs to allow local connections, remove from the blacklist "127.0.0.1/8". 
 
 The program will add buttons to the Lights table on JMRI / Web interface:
 
